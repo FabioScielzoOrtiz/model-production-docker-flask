@@ -46,14 +46,16 @@ def make_single_prediction():
         return jsonify({'error': str(e)})
 
 # Helper function to check allowed file extensions
-def allowed_file(filename):
+def file_type(file_path):
+    return file_path.split('/')[-1].split('.')[-1].lower()
+
+def allowed_file(file_path):
     allowed_files_types = {'csv'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_files_types
+    return file_type(file_path) in allowed_files_types
 
 def predict_multiple_features(file_path):
-
-    filename = file_path.split('/')[-1]
-    if allowed_file(filename): 
+    
+    if file_type(file_path) == 'csv': 
         user_features_df = pd.read_csv(file_path)
         index_list, prediction_list, all_warnings = [], [], []
         for index, row in user_features_df.iterrows():
@@ -67,9 +69,9 @@ def predict_multiple_features(file_path):
                 all_warnings.extend(row_warnings)
             except ValueError as e:
                 all_warnings.append({"index": index, "error": str(e)})
-        predictions_df = pd.DataFrame({'index': index_list, 'predictions': prediction_list})
-        
+        predictions_df = pd.DataFrame({'index': index_list, 'predictions': prediction_list})       
         return predictions_df, all_warnings
+    
 
 @app.route('/batch_predict', methods=['POST'])
 def make_multiple_predictions():
@@ -80,7 +82,7 @@ def make_multiple_predictions():
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
     
-    if allowed_file(file.filename):
+    if allowed_file(file):
         # Save the uploaded user data file
         user_data_filename = file.filename
         uploads_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'user-data')
