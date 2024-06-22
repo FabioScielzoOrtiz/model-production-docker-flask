@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Madrid House Price Estimator</title>
+    <!-- Bootstrap CSS for styling -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome CSS for icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Set the height for html and body to 80% */
+        html, body {
+            height: 90%;
+        }
+        /* General body styling */
+        body {
+            font-family: Arial, sans-serif; /* Use Arial font */
+            margin: 0; /* Remove default margin */
+            padding: 0; /* Remove default padding */
+            display: flex; /* Use flexbox layout */
+            justify-content: center; /* Center content horizontally */
+            align-items: center; /* Center content vertically */
+            min-height: 100vh; /* Ensure the body takes at least full viewport height */
+            background-color: #f0f0f0; /* Light grey background color */
+        }
+        /* Container styling */
+        .container {
+            background: white; /* White background for the container */
+            padding: 30px; /* Padding inside the container */
+            border-radius: 10px; /* Rounded corners */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1); /* Light shadow effect */
+            text-align: center; /* Center text */
+            width: 100%; /* Full width */
+            max-width: 800px; /* Maximum width */
+        }
+        /* Input group styling */
+        .input-group {
+            margin: 10px 0; /* Margin for input groups */
+        }
+        /* Form group label styling */
+        .form-group label {
+            font-weight: bold; /* Bold text for labels */
+        }
+        /* Form control styling */
+        .form-control {
+            margin-bottom: 10px; /* Margin below form controls */
+        }
+        /* Button styling */
+        button {
+            padding: 10px 20px; /* Padding inside the button */
+            border: none; /* No border */
+            background-color: #007bff; /* Primary blue background color */
+            color: white; /* White text */
+            border-radius: 5px; /* Rounded corners */
+            cursor: pointer; /* Pointer cursor on hover */
+            margin-top: 10px; /* Margin above button */
+        }
+        /* Button hover effect */
+        button:hover {
+            background-color: #0056b3; /* Darker blue background on hover */
+        }
+        /* Result section styling */
+        .result {
+            margin-top: 20px; /* Margin above result section */
+        }
+        /* File upload section styling */
+        .file-upload {
+            margin: 20px 0; /* Vertical margin for file upload section */
+        }
+        /* Heading styling */
+        h1 {
+            margin-bottom: 20px; /* Margin below heading */
+            font-size: 2em; /* Large font size */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><i class="fas fa-home"></i> Madrid House Price Estimator</h1> <!-- Heading with house icon -->
+        <form id="form-container" class="mt-4">
+            <div class="row">
+                <!-- Input fields will be generated here dynamically -->
+            </div>
+        </form>
+        <button class="btn btn-primary btn-block" onclick="makePrediction()">Estimate Price</button> <!-- Button to estimate price -->
+        <div class="file-upload mt-4">
+            <label for="file-input" class="btn btn-secondary btn-block">Upload CSV for estimating prices</label> <!-- Button to upload CSV file -->
+            <input type="file" id="file-input" accept=".csv" style="display: none;"> <!-- Hidden file input -->
+        </div>
+        <button class="btn btn-primary btn-block" onclick="uploadFile()">Estimate Prices for the CSV</button> <!-- Button to estimate prices from CSV -->
+        <button class="btn btn-info btn-block mt-3" onclick="downloadSampleCSV()">Download Sample CSV</button> <!-- Button to download sample CSV -->
+        <div class="result" id="result"></div> <!-- Div to display single prediction result -->
+        <div class="result" id="batch-result"></div> <!-- Div to display batch prediction result -->
+    </div>
+    <!-- Bootstrap and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        // Fetch feature names and types from the server and generate the form dynamically
+        fetch('/features')
+            .then(response => response.json())
+            .then(data => {
+                const featuresTypes = data.features_dtypes;
+                const formContainer = document.getElementById('form-container').querySelector('.row');
+
+                featuresTypes.forEach(([feature, type]) => {
+                    const colDiv = document.createElement('div');
+                    colDiv.className = 'col-md-6'; // Use col-md-6 to make two columns
+
+                    const formGroupDiv = document.createElement('div');
+                    formGroupDiv.className = 'form-group';
+
+                    const label = document.createElement('label');
+                    label.for = feature;
+                    label.innerText = feature.charAt(0).toUpperCase() + feature.slice(1).replace(/_/g, ' ') + ':'; // Format label text
+
+                    const input = document.createElement('input');
+                    input.id = feature;
+                    input.placeholder = feature.charAt(0).toUpperCase() + feature.slice(1).replace(/_/g, ' '); // Set placeholder text
+                    input.name = feature;
+                    input.className = 'form-control';
+
+                    if (type === 'numerical') {
+                        input.type = 'number'; // Set input type to number if feature is numerical
+                    } else if (type === 'string') {
+                        input.type = 'text'; // Set input type to text if feature is string
+                    }
+
+                    formGroupDiv.appendChild(label);
+                    formGroupDiv.appendChild(input);
+                    colDiv.appendChild(formGroupDiv);
+                    formContainer.appendChild(colDiv);
+                });
+            });
+
+        // Function to make a single prediction
+        function makePrediction() {
+            const featureValues = {};
+            const formContainer = document.getElementById('form-container');
+            const inputs = formContainer.getElementsByTagName('input');
+
+            for (let input of inputs) {
+                featureValues[input.id] = input.type === 'number' ? parseFloat(input.value) : input.value; // Get input values
+            }
+
+            fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(featureValues),
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultDiv = document.getElementById('result');
+                if (data.predicted_price) {
+                    resultDiv.innerHTML = `<h3 style="font-size: 1.3em;">Estimated Price: ${data.predicted_price}</h3></p><p style="color: red;">${data.warnings.join('<br>')}</p>`; // Display predicted price
+                } else {
+                    resultDiv.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`; // Display error message
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        // Function to upload a CSV file and get batch predictions
+        function uploadFile() {
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/batch_predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    throw new Error('Failed to generate predictions.');
+                }
+            })
+            .then(blob => {
+                // Create a download link for the blob
+                const downloadUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = 'predictions.csv';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(downloadUrl);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        // Function to download a sample CSV file
+        function downloadSampleCSV() {
+            fetch('https://raw.githubusercontent.com/FabioScielzoOrtiz/model-production-docker-flask/main/test/user_data_sample.csv')
+                .then(response => response.blob())
+                .then(blob => {
+                    const downloadUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = 'user_data_sample.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(downloadUrl);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        }
+    </script>
+</body>
+</html>

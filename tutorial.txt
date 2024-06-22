@@ -1,0 +1,21 @@
+# Build the app 
+
+docker build -t model-production-docker-flask .
+docker run -d -p 5000:5000 model-production-docker-flask
+
+# Tag the Docker Image:
+
+docker tag model-production-docker-flask fabioscielzoortiz98/model-production-docker-flask:latest
+
+# Access to your Docker Hub account
+
+docker login
+
+# Push the image
+
+docker push fabioscielzoortiz98/model-production-docker-flask:latest
+
+# Anyone with access to my Docker Hub repository can pull and run the image
+
+docker pull fabioscielzoortiz98/model-production-docker-flask:latest
+docker run -p 5000:5000 fabioscielzoortiz98/model-production-docker-flask:latest
