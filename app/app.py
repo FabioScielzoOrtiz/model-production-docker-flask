@@ -50,11 +50,10 @@ def file_type(file_path):
     return file_path.split('/')[-1].split('.')[-1].lower()
 
 def allowed_file(file_path):
-    allowed_files_types = {'csv'}
+    allowed_files_types = ['csv']
     return file_type(file_path) in allowed_files_types
 
 def predict_multiple_features(file_path):
-    
     if file_type(file_path) == 'csv': 
         user_features_df = pd.read_csv(file_path)
         index_list, prediction_list, all_warnings = [], [], []
@@ -82,22 +81,25 @@ def make_multiple_predictions():
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
     
-    if allowed_file(file):
+    if allowed_file(file.filename):
         # Save the uploaded user data file
         user_data_filename = file.filename
         uploads_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'user-data')
         os.makedirs(uploads_dir, exist_ok=True)
         user_data_path = os.path.join(uploads_dir, user_data_filename)
         file.save(user_data_path)
+                
         # Process the file and generate predictions
         predictions_df, warnings = predict_multiple_features(user_data_path)
+        
         # Save the predictions file
         predictions_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'predictions')
         os.makedirs(predictions_dir, exist_ok=True)
-        predictions_path = os.path.join(predictions_dir, f'predictions_{user_data_filename}.csv')
+        predictions_path = os.path.join(predictions_dir, f'predictions_{user_data_filename}')
         predictions_df.to_csv(predictions_path, index=False)
+                
         # Return the predictions file as a download    
-        return send_file(predictions_path, as_attachment=True, download_name=f'predictions_{user_data_filename}.csv')
+        return send_file(predictions_path, as_attachment=True, download_name=f'predictions_{user_data_filename}')
     else:
         return jsonify({"error": "Invalid file type"}), 400
 
