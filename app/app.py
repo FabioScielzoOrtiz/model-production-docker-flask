@@ -16,6 +16,7 @@ with open(model_path, 'rb') as file:
 # Load feature metadata from pickle file
 with open(features_metadata_path, 'rb') as file:
     features_metadata = pickle.load(file)
+
 # Load features data types from metadata
 features_dtypes_tuple = [(feature, metadata['dtype']) for feature, metadata in features_metadata.items()]
 
@@ -54,54 +55,65 @@ def allowed_file(file_path):
     return file_type(file_path) in allowed_files_types
 
 def predict_multiple_features(file_path):
-    if file_type(file_path) == 'csv': 
-        user_features_df = pd.read_csv(file_path)
-        index_list, prediction_list, all_warnings = [], [], []
-        for index, row in user_features_df.iterrows():
-            user_data = row.to_dict()
-            try:
-                user_feature_values, row_warnings = data_validation(user_data, features_metadata)
-                X_new = pd.DataFrame([user_feature_values], columns=features_metadata.keys())
-                prediction = model.predict(X_new)[0]
-                index_list.append(index)
-                prediction_list.append(np.round(prediction, 2))
-                all_warnings.extend(row_warnings)
-            except ValueError as e:
-                all_warnings.append({"index": index, "error": str(e)})
-        predictions_df = pd.DataFrame({'index': index_list, 'predictions': prediction_list})       
-        return predictions_df, all_warnings
-    
+    try:
+        if file_type(file_path) == 'csv': 
+            user_features_df = pd.read_csv(file_path)
+            index_list, prediction_list, all_warnings = [], [], []
+            for index, row in user_features_df.iterrows():
+                user_data = row.to_dict()
+                try:
+                    user_feature_values, row_warnings = data_validation(user_data, features_metadata)
+                    X_new = pd.DataFrame([user_feature_values], columns=features_metadata.keys())
+                    prediction = model.predict(X_new)[0]
+                    index_list.append(index)
+                    prediction_list.append(np.round(prediction, 2))
+                    all_warnings.extend(row_warnings)
+                except ValueError as ve:
+                    return None, {'error': str(ve)}
+                except Exception as e:
+                    return None, {'error': str(e)}
+            predictions_df = pd.DataFrame({'index': index_list, 'predictions': prediction_list})
+            return predictions_df, {'warnings': all_warnings}
+    except Exception as e:
+        return None, {'error': str(e)}
 
 @app.route('/batch_predict', methods=['POST'])
 def make_multiple_predictions():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-    
-    if allowed_file(file.filename):
-        # Save the uploaded user data file
-        user_data_filename = file.filename
-        uploads_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'user-data')
-        os.makedirs(uploads_dir, exist_ok=True)
-        user_data_path = os.path.join(uploads_dir, user_data_filename)
-        file.save(user_data_path)
-                
-        # Process the file and generate predictions
-        predictions_df, warnings = predict_multiple_features(user_data_path)
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file part"}), 400
         
-        # Save the predictions file
-        predictions_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'predictions')
-        os.makedirs(predictions_dir, exist_ok=True)
-        predictions_path = os.path.join(predictions_dir, f'predictions_{user_data_filename}')
-        predictions_df.to_csv(predictions_path, index=False)
-                
-        # Return the predictions file as a download    
-        return send_file(predictions_path, as_attachment=True, download_name=f'predictions_{user_data_filename}')
-    else:
-        return jsonify({"error": "Invalid file type"}), 400
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
+        
+        if allowed_file(file.filename):
+            # Save the uploaded user data file
+            user_data_filename = file.filename
+            uploads_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'user-data')
+            os.makedirs(uploads_dir, exist_ok=True)
+            user_data_path = os.path.join(uploads_dir, user_data_filename)
+            file.save(user_data_path)
+            
+            # Process the file and generate predictions
+            predictions_df, result = predict_multiple_features(user_data_path)
+            if 'error' in result:
+                return jsonify(result), 400
+
+            warnings = result.get('warnings', [])
+            
+            # Save the predictions file
+            predictions_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'predictions')
+            os.makedirs(predictions_dir, exist_ok=True)
+            predictions_path = os.path.join(predictions_dir, f'predictions_{user_data_filename}')
+            predictions_df.to_csv(predictions_path, index=False)
+            
+            # Return the predictions file as a download    
+            return send_file(predictions_path, as_attachment=True, download_name=f'predictions_{user_data_filename}')
+        else:
+            return jsonify({"error": "Invalid file type"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

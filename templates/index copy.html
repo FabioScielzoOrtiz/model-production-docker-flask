@@ -181,7 +181,7 @@
                 if (response.ok) {
                     return response.blob();
                 } else {
-                    return response.json().then(err => { throw new Error(err.error); });
+                    throw new Error('Failed to generate predictions.');
                 }
             })
             .then(blob => {
@@ -196,8 +196,6 @@
                 URL.revokeObjectURL(downloadUrl);
             })
             .catch(error => {
-                const batchResultDiv = document.getElementById('batch-result');
-                batchResultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`; // Display error message
                 console.error('Error:', error);
             });
         }
